@@ -3,10 +3,14 @@ import zipfile
 
 # interact with os through python
 import os
+from os import makedirs
+from os import listdir
+
+# utility for copyfile
+from shutil import copyfile
 
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
 
 # split training set
 from sklearn.model_selection import train_test_split
@@ -14,34 +18,31 @@ from sklearn.model_selection import train_test_split
 # computer vision library for image processing.
 import cv2
 import seaborn as sns
+import matplotlib.pyplot as plt
 
 # random number generator and ability to seed.
 from random import seed
 from random import random
 
-# utility for copyfile
-from shutil import copyfile
-
-
-from keras.utils import to_categorical
-import tensorflow as tf
+# deep learning library, transform and augument image data
+from tensorflow.keras.preprocessing.image import ImageDataGenerator
 
 # print(tf.__version__)
 # print(tf.keras.__version__)
 
 # 1.0 data acquisition and finding filenames and labels
 
-train_file_path = "/Users/godfreykrutzsch/Desktop/DL_Cat_Dog/train.zip"
-test_file_path = "/Users/godfreykrutzsch/Desktop/DL_Cat_Dog/test1.zip"
+train_zip_file_path = "/Users/godfreykrutzsch/Desktop/DL_Cat_Dog/train.zip"
+test_zip_file_path = "/Users/godfreykrutzsch/Desktop/DL_Cat_Dog/test1.zip"
 
 files = "/Users/godfreykrutzsch/Desktop/DL_Cat_Dog/"
 
 # 1.0 image extraction
 
-with zipfile.ZipFile(train_file_path, 'r') as zipp:
+with zipfile.ZipFile(train_zip_file_path, 'r') as zipp:
     zipp.extractall(files)
 
-with zipfile.ZipFile(test_file_path, 'r') as zipp:
+with zipfile.ZipFile(test_zip_file_path, 'r') as zipp:
     zipp.extractall(files)
 
 image_dir_train = "/Users/godfreykrutzsch/Desktop/DL_Cat_Dog/train/"
@@ -58,14 +59,14 @@ test_labels = [x.split(".")[0] for x in filenames_test]
 
 # list all filenames and labels in DF
 df_training_data = pd.DataFrame({"filename": filenames, "label": labels})
-data_test = pd.DataFrame({"filename": filenames_test, "label": test_labels})
+df_test_data = pd.DataFrame({"filename": filenames_test, "label": test_labels})
 
-df_combined = pd.concat([df_training_data.reset_index(drop=True), data_test.reset_index(drop=True)], axis=0)
+df_combined = pd.concat([df_training_data.reset_index(drop=True), df_test_data.reset_index(drop=True)], axis=0)
 print("check shape of combine dataset")
 print(df_combined.shape)
 
 print("The shape of training data", df_training_data.shape)
-print("The shape of test data", data_test.shape)
+print("The shape of test data", df_test_data.shape)
 
 file_path_csv = "/Users/godfreykrutzsch/Desktop/DL_Cat_Dog/dump.csv"
 df_combined.to_csv(file_path_csv, index=False)
@@ -118,13 +119,13 @@ process_testing_images()
 
 # 3.0 split train test using data frame
 
-# we use this to stratify and ensure the thus maintain class distribution (ratio)
+# we use this to stratify and ensure the thus maintain class distribution (ratio) of cats and dogs
 labels = df_training_data['label']
 
 # split 80: 20
 X_train, X_temp = train_test_split(df_training_data, test_size=0.2, stratify=labels, random_state=42)
 
-# use to maintain class distribution with stratify
+# use to maintain class distribution with stratify the 20% ratio of cat and dogs as original data
 label_test_val = X_temp['label']
 
 # split 10: 10
@@ -140,8 +141,8 @@ print("The shape of validation data", X_val.shape)
 def visualise_subset_images():
     plt.figure(figsize=(9, 9))
 
-    for i in range(10):
-        plt.subplot(1, 10, i + 1)  # Create a subplot for each image
+    for i in range(20):
+        plt.subplot(2, 10, i + 1)  # Create a subplot for each image
         file_path_local = os.path.join(image_dir_train, filenames[i])
         image = cv2.imread(file_path_local)
         if image is not None:  # Check if image is read correctly
@@ -163,6 +164,7 @@ dataset_home = '/Users/godfreykrutzsch/Desktop/DL_Cat_Dog/dataset_dogs_vs_cats/'
 subdirs = ['train/', 'test/']
 
 # 5.0 setup directories structure on local machine
+
 for subdir in subdirs:
     labeldirs = ['dogs/', 'cats/']
     for labeldir in labeldirs:
@@ -191,11 +193,31 @@ for file in os.listdir(src_directory):
         dst_dir = 'test/'
 
     # categorize and copy
-    if file.startswith('cats'):
-        dst = dataset_home + dst_dir + 'cat/' + file
+    if file.startswith('cat'):
+        dst = dataset_home + dst_dir + 'cats/' + file
         copyfile(src, dst)
     elif file.startswith('dog'):
         dst = dataset_home + dst_dir + 'dogs/' + file
         copyfile(src, dst)
 
+# create an instance of ImageDataGenerator with rescaling
+train_datagen = ImageDataGenerator(rescale=1. / 255)
+test_datagen = ImageDataGenerator(rescale=1. / 255)
 
+print(X_val.info)
+X_val.head()
+
+# global parameters for training
+batch_size = 32
+image_size = 150
+
+# load training images from directory
+train_generator = train_datagen.flow_from_dataframe(X_train,
+                                                    directory='train/',  # directory containing training images
+                                                    target_size=(image_size, image_size),
+                                                    # Resize images to 150x 150 pixels
+                                                    batch_size=batch_size,  # The number of images to return each batch
+                                                    x_col='filename',
+                                                    y_col='label'
+
+                                                    )
