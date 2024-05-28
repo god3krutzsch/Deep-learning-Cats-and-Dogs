@@ -30,6 +30,8 @@ from tensorflow.keras.preprocessing.image import ImageDataGenerator
 # print(tf.__version__)
 # print(tf.keras.__version__)
 
+# Phase 1
+
 # 1.0 data acquisition and finding filenames and labels
 
 train_zip_file_path = "/Users/godfreykrutzsch/Desktop/DL_Cat_Dog/train.zip"
@@ -49,16 +51,16 @@ image_dir_train = "/Users/godfreykrutzsch/Desktop/DL_Cat_Dog/train/"
 image_dir_test = "/Users/godfreykrutzsch/Desktop/DL_Cat_Dog/test1/"
 
 # List all files in the directory
-filenames = os.listdir(image_dir_train)
+filenames_training = os.listdir(image_dir_train)
 filenames_test = os.listdir(image_dir_test)
-all_filenames = filenames + filenames_test
+all_filenames = filenames_training + filenames_test
 
 # find labels
-labels = [x.split(".")[0] for x in filenames]
+labels_training = [x.split(".")[0] for x in filenames_training]
 test_labels = [x.split(".")[0] for x in filenames_test]
 
 # list all filenames and labels in DF
-df_training_data = pd.DataFrame({"filename": filenames, "label": labels})
+df_training_data = pd.DataFrame({"filename": filenames_training, "label": labels_training})
 df_test_data = pd.DataFrame({"filename": filenames_test, "label": test_labels})
 
 df_combined = pd.concat([df_training_data.reset_index(drop=True), df_test_data.reset_index(drop=True)], axis=0)
@@ -67,6 +69,8 @@ print(df_combined.shape)
 
 print("The shape of training data", df_training_data.shape)
 print("The shape of test data", df_test_data.shape)
+print("", df_training_data)
+print("", df_test_data)
 
 file_path_csv = "/Users/godfreykrutzsch/Desktop/DL_Cat_Dog/dump.csv"
 df_combined.to_csv(file_path_csv, index=False)
@@ -78,7 +82,7 @@ df_combined.to_csv(file_path_csv, index=False)
 def process_training_images():
     training_data = []
 
-    for filename in filenames:
+    for filename in filenames_training:
         file_path = os.path.join(image_dir_train, filename)
 
         # read image from that location with filename
@@ -107,7 +111,7 @@ def process_testing_images():
         if image is not None:
             image = cv2.resize(image, (150, 150))
             image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)  # Convert BGR to RGB
-            testing_data.append([image, filename])
+            testing_data.append([image])
         else:
             print("Test Resizing failed")
 
@@ -116,6 +120,8 @@ print("Set of testing images have been standardised 150 x 150 and from BGR to RG
 
 process_training_images()
 process_testing_images()
+
+# Phase 2
 
 # 3.0 split train test using data frame
 
@@ -143,7 +149,7 @@ def visualise_subset_images():
 
     for i in range(20):
         plt.subplot(2, 10, i + 1)  # Create a subplot for each image
-        file_path_local = os.path.join(image_dir_train, filenames[i])
+        file_path_local = os.path.join(image_dir_train, filenames_training[i])
         image = cv2.imread(file_path_local)
         if image is not None:  # Check if image is read correctly
             print("Image is ok")
@@ -157,6 +163,8 @@ def visualise_subset_images():
 
 
 visualise_subset_images()
+
+# Phase 3
 
 # define the dataset directory on local machine
 
@@ -179,13 +187,13 @@ seed(1)
 # define ratio of pictures to use for validation
 val_ratio = 0.2
 
-# 6.0 copy training dataset images into subdirectories
-
-src_directory = '/Users/godfreykrutzsch/Desktop/DL_Cat_Dog/train/'
+# 6.0 copy training dataset images into subdirectories we have created from the below directory
+src_directory = '/Users/godfreykrutzsch/Desktop/DL_Cat_Dog/train'
 
 # this loop goes through every file in source and constructs the full path to each file
 for file in os.listdir(src_directory):
     src = src_directory + '/' + file
+    #print(src)
 
     # random assignment to training or testing
     dst_dir = 'train/'
@@ -200,12 +208,45 @@ for file in os.listdir(src_directory):
         dst = dataset_home + dst_dir + 'dogs/' + file
         copyfile(src, dst)
 
+# we tohere.. lets check.
+path1 = "/Users/godfreykrutzsch/Desktop/DL_Cat_Dog/dataset_dogs_vs_cats/train/dogs"
+path2 = "/Users/godfreykrutzsch/Desktop/DL_Cat_Dog/dataset_dogs_vs_cats/train/cats"
+path3 = "/Users/godfreykrutzsch/Desktop/DL_Cat_Dog/dataset_dogs_vs_cats/test/dogs"
+path4 = "/Users/godfreykrutzsch/Desktop/DL_Cat_Dog/dataset_dogs_vs_cats/test/cats"
+
+print("The number of dogs in training", len(os.listdir(path1)))
+print("The number of cats in training", len(os.listdir(path2)))
+print("The number of dogs in test/validation", len(os.listdir(path3)))
+print("The number of cats in test/ validation", len(os.listdir(path4)))
+
 # create an instance of ImageDataGenerator with rescaling
-train_datagen = ImageDataGenerator(rescale=1. / 255)
-test_datagen = ImageDataGenerator(rescale=1. / 255)
+# train_datagen = ImageDataGenerator(rescale=1. / 255)
+# val_datagen = ImageDataGenerator(rescale=1. / 255)
+# test_datagen = ImageDataGenerator(rescale=1. / 255)
+
+train_datagen = ImageDataGenerator()
+val_datagen = ImageDataGenerator()
+test_datagen = ImageDataGenerator()
+
+print("check xtrain, xvale and xtrain values")
+
+print("X_val")
 
 print(X_val.info)
 X_val.head()
+print(X_val.shape)
+
+print("X test")
+
+print(X_test.info)
+X_test.head()
+print(X_test.shape)
+
+print("X train")
+
+print(X_train.info)
+X_train.head()
+print(X_train.shape)
 
 # global parameters for training
 batch_size = 32
@@ -213,11 +254,26 @@ image_size = 150
 
 # load training images from directory
 train_generator = train_datagen.flow_from_dataframe(X_train,
-                                                    directory='train/',  # directory containing training images
-                                                    target_size=(image_size, image_size),
-                                                    # Resize images to 150x 150 pixels
-                                                    batch_size=batch_size,  # The number of images to return each batch
+                                                    directory="/Users/godfreykrutzsch/Desktop/DL_Cat_Dog/dataset_dogs_vs_cats/train/",  # directory containing training images
                                                     x_col='filename',
-                                                    y_col='label'
+                                                    y_col='label',
+                                                    # target_size=(image_size, image_size),
+                                                    # Resize images to 150x 150 pixels
+                                                    batch_size=batch_size  # The number of images to return each batch
 
                                                     )
+validation_generator = val_datagen.flow_from_dataframe(X_val,
+                                                       directory='train/',
+                                                       x_col='filename',
+                                                       y_col='label',
+                                                       # target_size=(image_size, image_size),
+                                                       batch_size=batch_size,
+                                                       shuffle=False)
+
+test_generator = test_datagen.flow_from_dataframe(X_test,
+                                                  directory='train/',
+                                                  x_col='filename',
+                                                  y_col='label',
+                                                 # target_size=(image_size, image_size),
+                                                  batch_size=batch_size,
+                                                  shuffle=False)
